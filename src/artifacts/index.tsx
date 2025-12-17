@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, Clock, MapPin, Users, CheckCircle, Play, Clock3, ExternalLink, Zap, GraduationCap, FileImage, X, BookOpen } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, CheckCircle, Play, Clock3, ExternalLink, Zap, GraduationCap, FileImage, X, BookOpen, CalendarPlus, Pause, SkipBack, SkipForward, Rewind, FastForward, ChevronDown, Gamepad2 } from 'lucide-react';
 import abstractsData from '../data/abstracts.json';
 
 interface Presentation {
@@ -16,6 +16,7 @@ interface Presentation {
   isExternalSpeaker?: boolean;
   isDuplicate?: boolean;
   isPosterSession?: boolean;
+  onlineLink?: string;
 }
 
 interface AbstractData {
@@ -30,6 +31,7 @@ const labColors = {
   'Sotzing Lab': 'from-purple-600 to-violet-700',
   'Lin Lab': 'from-orange-600 to-amber-700',
   'Nieh Lab': 'from-red-600 to-rose-700',
+  'Hohman Lab': 'from-teal-600 to-cyan-700',
   '60th Anniversary Symposium': 'from-amber-500 to-orange-600'
 };
 
@@ -203,6 +205,17 @@ const presentations: Presentation[] = [
     room: "Hall D, room 1",
     building: "Walter E. Washington Convention Center",
     color: labColors['Nieh Lab']
+  },
+  {
+    name: "Qiaoling Fan",
+    lab: "Hohman Lab",
+    title: "Melt-processable metal-organic chalcogenolate quantum wire superlattices",
+    date: "2025-08-18",
+    startTime: "11:00",
+    endTime: "11:20",
+    room: "Room 204C",
+    building: "Walter E. Washington Convention Center",
+    color: labColors['Hohman Lab']
   },
   
   // 60th Anniversary Symposium
@@ -416,6 +429,18 @@ const presentations: Presentation[] = [
     isSymposium: true,
     isExternalSpeaker: false,
     isDuplicate: true  // Flag to handle filtering
+  },
+  {
+    name: "Nishadi Bandara",
+    lab: "Adamson Lab",
+    title: "Moisture enabled electric power generation using graphene-based hydrogels",
+    date: "2025-08-19",
+    startTime: "13:40",
+    endTime: "14:00",
+    room: "Digital Session (Digital Meeting)",
+    building: "Online Presentation",
+    color: labColors['Adamson Lab'],
+    onlineLink: "https://acs.digitellinc.com/live/35/session/569368/attend"
   }
 ];
 
@@ -587,21 +612,308 @@ const ParticleBackground = () => {
   );
 };
 
+// Demo mode: Simulate the event being live for portfolio showcase
+const DEMO_TIME = new Date('2025-08-18T14:55:00');
+
+// Conference time boundaries
+const CONFERENCE_START = new Date('2025-08-18T07:00:00');
+const CONFERENCE_END = new Date('2025-08-21T10:00:00');
+
+// Preset scenarios for demo
+const DEMO_PRESETS = [
+  { label: 'Opening', time: new Date('2025-08-18T08:00:00'), description: 'Conference kickoff' },
+  { label: 'My Talk', time: new Date('2025-08-18T14:55:00'), description: 'Brenden presenting' },
+  { label: 'Poster', time: new Date('2025-08-18T12:30:00'), description: 'Poster sessions' },
+  { label: 'Online', time: new Date('2025-08-19T13:45:00'), description: 'Online presentation' },
+  { label: 'Day 2', time: new Date('2025-08-19T10:30:00'), description: 'Tuesday morning' },
+  { label: 'Day 3', time: new Date('2025-08-20T11:45:00'), description: 'Wednesday midday' },
+  { label: 'Finale', time: new Date('2025-08-21T09:45:00'), description: 'Final presentation' },
+];
+
+const SPEED_OPTIONS = [
+  { label: '1x', value: 1 },
+  { label: '10x', value: 10 },
+  { label: '60x', value: 60 },
+  { label: '600x', value: 600 },
+];
+
+interface DemoControlPanelProps {
+  currentTime: Date;
+  setCurrentTime: (time: Date) => void;
+  isPlaying: boolean;
+  setIsPlaying: (playing: boolean) => void;
+  playbackSpeed: number;
+  setPlaybackSpeed: (speed: number) => void;
+}
+
+const DemoControlPanel = ({
+  currentTime,
+  setCurrentTime,
+  isPlaying,
+  setIsPlaying,
+  playbackSpeed,
+  setPlaybackSpeed
+}: DemoControlPanelProps) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+
+  const formatDemoTime = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const jumpTime = (minutes: number) => {
+    const newTime = new Date(currentTime.getTime() + minutes * 60 * 1000);
+    // Clamp to conference bounds
+    if (newTime < CONFERENCE_START) {
+      setCurrentTime(CONFERENCE_START);
+    } else if (newTime > CONFERENCE_END) {
+      setCurrentTime(CONFERENCE_END);
+    } else {
+      setCurrentTime(newTime);
+    }
+  };
+
+  const setPresetTime = (preset: typeof DEMO_PRESETS[0]) => {
+    setCurrentTime(preset.time);
+  };
+
+  // Calculate progress through the conference (0-100)
+  const totalDuration = CONFERENCE_END.getTime() - CONFERENCE_START.getTime();
+  const elapsed = currentTime.getTime() - CONFERENCE_START.getTime();
+  const progress = Math.max(0, Math.min(100, (elapsed / totalDuration) * 100));
+
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    const newTime = new Date(CONFERENCE_START.getTime() + (value / 100) * totalDuration);
+    setCurrentTime(newTime);
+  };
+
+  const getDayNumber = () => {
+    const day = currentTime.getDate() - 17; // Aug 18 = Day 1
+    return Math.max(1, Math.min(4, day));
+  };
+
+  if (isCollapsed) {
+    return (
+      <button
+        onClick={() => setIsCollapsed(false)}
+        className="fixed bottom-4 right-4 z-50 bg-white/90 backdrop-blur-md border border-slate-200 rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 group"
+        title="Open Demo Controls"
+      >
+        <Gamepad2 className="w-6 h-6 text-slate-700 group-hover:text-blue-600 transition-colors" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50 bg-white/95 backdrop-blur-md border border-slate-200 rounded-2xl shadow-2xl overflow-hidden w-80 animate-[slideUp_0.3s_ease-out]">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Gamepad2 className="w-4 h-4" />
+          <span className="font-semibold text-sm">Demo Controls</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsCollapsed(true)}
+            className="p-1 hover:bg-white/20 rounded transition-colors"
+            title="Minimize"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Time Display */}
+      <div className="px-4 py-3 border-b border-slate-100">
+        <div className="flex items-center gap-2 text-slate-800">
+          <Calendar className="w-4 h-4 text-slate-500" />
+          <span className="font-medium">{formatDemoTime(currentTime)}</span>
+          {isPlaying && (
+            <span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full animate-pulse">
+              LIVE
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Playback Controls */}
+      <div className="px-4 py-3 border-b border-slate-100">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => jumpTime(-60)}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors group"
+              title="Back 1 hour"
+            >
+              <Rewind className="w-4 h-4 text-slate-600 group-hover:text-slate-900" />
+            </button>
+            <button
+              onClick={() => jumpTime(-15)}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors group"
+              title="Back 15 min"
+            >
+              <SkipBack className="w-4 h-4 text-slate-600 group-hover:text-slate-900" />
+            </button>
+            <button
+              onClick={() => setIsPlaying(!isPlaying)}
+              className={`p-2 rounded-lg transition-all ${
+                isPlaying
+                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+              title={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={() => jumpTime(15)}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors group"
+              title="Forward 15 min"
+            >
+              <SkipForward className="w-4 h-4 text-slate-600 group-hover:text-slate-900" />
+            </button>
+            <button
+              onClick={() => jumpTime(60)}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors group"
+              title="Forward 1 hour"
+            >
+              <FastForward className="w-4 h-4 text-slate-600 group-hover:text-slate-900" />
+            </button>
+          </div>
+
+          {/* Speed Selector */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium text-slate-700 transition-colors flex items-center gap-1"
+            >
+              {playbackSpeed}x
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {showSpeedMenu && (
+              <div className="absolute bottom-full right-0 mb-1 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+                {SPEED_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setPlaybackSpeed(option.value);
+                      setShowSpeedMenu(false);
+                    }}
+                    className={`block w-full px-4 py-2 text-sm text-left hover:bg-slate-100 transition-colors ${
+                      playbackSpeed === option.value ? 'bg-blue-50 text-blue-700' : 'text-slate-700'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Timeline Scrubber */}
+      <div className="px-4 py-3 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={progress}
+            onChange={handleSliderChange}
+            className="flex-1 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer
+              [&::-webkit-slider-thumb]:appearance-none
+              [&::-webkit-slider-thumb]:w-4
+              [&::-webkit-slider-thumb]:h-4
+              [&::-webkit-slider-thumb]:bg-blue-600
+              [&::-webkit-slider-thumb]:rounded-full
+              [&::-webkit-slider-thumb]:cursor-pointer
+              [&::-webkit-slider-thumb]:shadow-md
+              [&::-webkit-slider-thumb]:transition-transform
+              [&::-webkit-slider-thumb]:hover:scale-125"
+          />
+          <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
+            Day {getDayNumber()}/4
+          </span>
+        </div>
+      </div>
+
+      {/* Quick Jump Presets */}
+      <div className="px-4 py-3">
+        <div className="text-xs text-slate-500 font-medium mb-2">Quick Jump</div>
+        <div className="flex flex-wrap gap-1.5">
+          {DEMO_PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              onClick={() => setPresetTime(preset)}
+              className={`px-2.5 py-1 text-xs font-medium rounded-full transition-all hover:scale-105 ${
+                preset.label === 'My Talk'
+                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 ring-1 ring-blue-300'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+              title={preset.description}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer hint */}
+      <div className="px-4 py-2 bg-slate-50 border-t border-slate-100">
+        <p className="text-xs text-slate-400 text-center">
+          Explore the conference timeline interactively
+        </p>
+      </div>
+    </div>
+  );
+};
+
 const ACSSchedule = () => {
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState(DEMO_TIME);
   const [mounted, setMounted] = useState(false);
   const [sortBy, setSortBy] = useState<'time' | 'lab'>('time');
   const [selectedLab, setSelectedLab] = useState<string | null>(null);
   const [selectedPresentation, setSelectedPresentation] = useState<Presentation | null>(null);
   const [showAbstractModal, setShowAbstractModal] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const lastUpdateRef = useRef(Date.now());
 
   useEffect(() => {
     setMounted(true);
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
   }, []);
+
+  // Separate effect for time updates that responds to isPlaying and playbackSpeed
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    lastUpdateRef.current = Date.now();
+
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const realElapsed = now - lastUpdateRef.current;
+      lastUpdateRef.current = now;
+
+      setCurrentTime(prev => {
+        const newTime = new Date(prev.getTime() + realElapsed * playbackSpeed);
+        // Clamp to conference bounds
+        if (newTime > CONFERENCE_END) return CONFERENCE_END;
+        if (newTime < CONFERENCE_START) return CONFERENCE_START;
+        return newTime;
+      });
+    }, 100); // Update more frequently for smoother playback at high speeds
+
+    return () => clearInterval(timer);
+  }, [isPlaying, playbackSpeed]);
 
   const getPresentationDateTime = (presentation: Presentation) => {
     const [year, month, day] = presentation.date.split('-');
@@ -691,6 +1003,10 @@ const ACSSchedule = () => {
     return buildingLinks[building] || '#';
   };
 
+  const isOnlinePresentation = (building: string) => {
+    return building === 'Online Presentation';
+  };
+
   const getLabButtonColors = (lab: string, isSelected: boolean) => {
     const labColorMap: Record<string, { selected: string; unselected: string; text: string }> = {
       'Adamson Lab': {
@@ -717,6 +1033,11 @@ const ACSSchedule = () => {
         selected: 'bg-red-100/80 border-red-200/80 text-red-700',
         unselected: 'bg-red-50/50 border-red-100/50 text-red-600 hover:bg-red-100/60',
         text: 'text-red-700'
+      },
+      'Hohman Lab': {
+        selected: 'bg-teal-100/80 border-teal-200/80 text-teal-700',
+        unselected: 'bg-teal-50/50 border-teal-100/50 text-teal-600 hover:bg-teal-100/60',
+        text: 'text-teal-700'
       }
     };
 
@@ -1021,6 +1342,32 @@ const ACSSchedule = () => {
         'foundational training at the Institute of Materials Science',
         'unlimited access to the newly acquired small- and wide-angle X-ray scattering instrumentation',
         'actively engaged in research on materials, properties and applications throughout my career'
+      ],
+      'Nishadi Bandara': [
+        'polymer graphene hydrogel-based Moist-Electric Generator (MEG)',
+        'gradient distribution of functional groups',
+        'ion concentration gradient',
+        'solvent interfacial trapping method',
+        'cost-effective, and eco-friendly approach',
+        'high open circuit voltage of 0.74 V',
+        'increased voltage of 18.4 V by integrating multiple MEG units in series',
+        'light an LED and power an LCD calculator',
+        'simplifies fabrication while improving scalability and practicality',
+        'moisture-to-electricity conversion'
+      ],
+      'Qiaoling Fan': [
+        'solid to liquid phase transitions in secondary silver alkanethiolate',
+        '1-dimensional (1D) metal-organic chalcogenolates (MOChas)',
+        'small molecular serial femtosecond crystallography (smSFX)',
+        '1D quantum wire motif',
+        'strong light-matter interactions',
+        'intense green/yellow photoluminescence',
+        'thermal decomposition by way of disproportionation',
+        'melting temperatures below the decomposition temperature',
+        'flexibility and low symmetry of secondary alkanethiol ligands',
+        'chiral phase separation occurs in the racemic crystal',
+        'melt-processable MOChas and optical changes',
+        '(Ag-SR)∞ nonmolecular in the solid state and (Ag-SR) molecular in the liquid state'
       ]
     };
 
@@ -1062,13 +1409,27 @@ const ACSSchedule = () => {
     return (abstractsData as Record<string, AbstractData>)[presenterName] || null;
   };
 
+  const getCalendarUrl = (acsLink: string, format: 'ics' | 'google') => {
+    return `${acsLink}/calendar?format=${format}`;
+  };
+
   if (!mounted) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 relative overflow-hidden">
       {/* Interactive Particle Background */}
       <ParticleBackground />
-      
+
+      {/* Demo Control Panel */}
+      <DemoControlPanel
+        currentTime={currentTime}
+        setCurrentTime={setCurrentTime}
+        isPlaying={isPlaying}
+        setIsPlaying={setIsPlaying}
+        playbackSpeed={playbackSpeed}
+        setPlaybackSpeed={setPlaybackSpeed}
+      />
+
       {/* Abstract Modal */}
       {showAbstractModal && selectedPresentation && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4" onClick={closeModal}>
@@ -1096,8 +1457,12 @@ const ACSSchedule = () => {
                       </span>
                     )}
                     {selectedPresentation.building !== 'Walter E. Washington Convention Center' && (
-                      <span className="bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full text-xs font-bold">
-                        OFF-SITE
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                        isOnlinePresentation(selectedPresentation.building) 
+                          ? 'bg-blue-500 text-white animate-pulse' 
+                          : 'bg-yellow-400 text-yellow-900'
+                      }`}>
+                        {isOnlinePresentation(selectedPresentation.building) ? 'ONLINE' : 'OFF-SITE'}
                       </span>
                     )}
                   </div>
@@ -1117,27 +1482,51 @@ const ACSSchedule = () => {
                       <span>{formatTime(selectedPresentation.startTime)}-{formatTime(selectedPresentation.endTime)}</span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="bg-white/20 px-2 py-1 rounded-full inline-flex items-center gap-1">
                       <Clock3 className="w-3 h-3" />
                       <span className="font-medium text-xs">
                         {getTimeUntilPresentation(selectedPresentation)}
                       </span>
                     </div>
-                    {(() => {
-                      const abstractData = getAbstractData(selectedPresentation.name);
-                      return abstractData?.acsLink ? (
-                        <a
-                          href={abstractData.acsLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-full font-medium text-xs transition-all duration-300"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          ACS
-                        </a>
-                      ) : null;
-                    })()}
+                    <div className="flex flex-wrap gap-1">
+                      {(() => {
+                        const abstractData = getAbstractData(selectedPresentation.name);
+                        return abstractData?.acsLink ? (
+                          <>
+                            <a
+                              href={abstractData.acsLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-full font-medium text-xs transition-all duration-300"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              ACS
+                            </a>
+                            <a
+                              href={getCalendarUrl(abstractData.acsLink, 'ics')}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-2 py-1 rounded-full font-medium text-xs transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105"
+                              title="Add to Outlook/iCal"
+                            >
+                              <CalendarPlus className="w-3 h-3" />
+                              iCal
+                            </a>
+                            <a
+                              href={getCalendarUrl(abstractData.acsLink, 'google')}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-2 py-1 rounded-full font-medium text-xs transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105"
+                              title="Add to Google Calendar"
+                            >
+                              <CalendarPlus className="w-3 h-3" />
+                              Google
+                            </a>
+                          </>
+                        ) : null;
+                      })()}
+                    </div>
                   </div>
                 </div>
 
@@ -1155,8 +1544,12 @@ const ACSSchedule = () => {
                       </span>
                     )}
                     {selectedPresentation.building !== 'Walter E. Washington Convention Center' && (
-                      <span className="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
-                        OFF-SITE
+                      <span className={`px-3 py-1 rounded-full text-sm font-bold animate-pulse ${
+                        isOnlinePresentation(selectedPresentation.building) 
+                          ? 'bg-blue-500 text-white' 
+                          : 'bg-yellow-400 text-yellow-900'
+                      }`}>
+                        {isOnlinePresentation(selectedPresentation.building) ? 'ONLINE' : 'OFF-SITE'}
                       </span>
                     )}
                   </div>
@@ -1205,17 +1598,50 @@ const ACSSchedule = () => {
                       {(() => {
                         const abstractData = getAbstractData(selectedPresentation.name);
                         return abstractData?.acsLink ? (
-                          <a
-                            href={abstractData.acsLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-full font-medium text-sm transition-all duration-300 hover:scale-105 group"
-                          >
-                            <ExternalLink className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                            View ACS Abstract
-                          </a>
+                          <>
+                            <a
+                              href={abstractData.acsLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-full font-medium text-sm transition-all duration-300 hover:scale-105 group"
+                            >
+                              <ExternalLink className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                              View ACS Abstract
+                            </a>
+                            <a
+                              href={getCalendarUrl(abstractData.acsLink, 'ics')}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-full font-medium text-sm transition-all duration-300 hover:scale-105 group shadow-lg border border-blue-400/20"
+                              title="Add to Outlook/Apple Calendar"
+                            >
+                              <CalendarPlus className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
+                              Outlook/iCal
+                            </a>
+                            <a
+                              href={getCalendarUrl(abstractData.acsLink, 'google')}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-2 rounded-full font-medium text-sm transition-all duration-300 hover:scale-105 group shadow-lg border border-green-400/20"
+                              title="Add to Google Calendar"
+                            >
+                              <CalendarPlus className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
+                              Google Calendar
+                            </a>
+                          </>
                         ) : null;
                       })()}
+                      {selectedPresentation.onlineLink && (
+                        <a
+                          href={selectedPresentation.onlineLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full font-medium text-sm transition-all duration-300 hover:scale-105 group shadow-lg"
+                        >
+                          <Play className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
+                          View Online
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1279,6 +1705,7 @@ const ACSSchedule = () => {
               </a>
             </div>
             <p className="text-slate-500 text-sm mt-1">Institute of Materials Science</p>
+            <p className="text-slate-400 text-xs mt-2 italic">Interactive Demo — Use controls to explore the conference timeline</p>
           </div>
           
           <div className="flex flex-wrap justify-center gap-3 lg:gap-4 animate-[fadeIn_1s_ease-out_0.3s_both]">
@@ -1406,8 +1833,12 @@ const ACSSchedule = () => {
                         {presentation.lab}
                       </span>
                       {isOffSite && (
-                        <span className="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
-                          OFF-SITE
+                        <span className={`px-3 py-1 rounded-full text-sm font-bold animate-pulse ${
+                          isOnlinePresentation(presentation.building) 
+                            ? 'bg-blue-500 text-white' 
+                            : 'bg-yellow-400 text-yellow-900'
+                        }`}>
+                          {isOnlinePresentation(presentation.building) ? 'ONLINE' : 'OFF-SITE'}
                         </span>
                       )}
                       {currentPresentations.length > 1 && (
@@ -1481,8 +1912,12 @@ const ACSSchedule = () => {
                         {presentation.lab}
                       </span>
                       {isOffSite && (
-                        <span className="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-bold animate-pulse">
-                          OFF-SITE
+                        <span className={`px-3 py-1 rounded-full text-sm font-bold animate-pulse ${
+                          isOnlinePresentation(presentation.building) 
+                            ? 'bg-blue-500 text-white' 
+                            : 'bg-yellow-400 text-yellow-900'
+                        }`}>
+                          {isOnlinePresentation(presentation.building) ? 'ONLINE' : 'OFF-SITE'}
                         </span>
                       )}
                       {nextPresentations.length > 1 && (
@@ -1609,8 +2044,12 @@ const ACSSchedule = () => {
                         {presentation.name}
                       </h3>
                       {isOffSite && (
-                        <div className="bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full text-xs font-bold animate-pulse">
-                          OFF-SITE
+                        <div className={`px-2 py-1 rounded-full text-xs font-bold animate-pulse ${
+                          isOnlinePresentation(presentation.building) 
+                            ? 'bg-blue-500 text-white' 
+                            : 'bg-yellow-400 text-yellow-900'
+                        }`}>
+                          {isOnlinePresentation(presentation.building) ? 'ONLINE' : 'OFF-SITE'}
                         </div>
                       )}
                     </div>
@@ -1665,6 +2104,21 @@ const ACSSchedule = () => {
                     </span>
                   </div>
                 </div>
+                
+                {presentation.onlineLink && (
+                  <div className="mt-4 pt-4 border-t border-white/20">
+                    <a
+                      href={presentation.onlineLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full font-medium text-sm transition-all duration-300 hover:scale-105 group shadow-lg w-full justify-center"
+                    >
+                      <Play className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
+                      Join Online Presentation
+                    </a>
+                  </div>
+                )}
               </div>
             );
           })}
